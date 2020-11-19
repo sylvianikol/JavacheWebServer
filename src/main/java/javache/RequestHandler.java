@@ -4,6 +4,7 @@ import javache.enums.HttpStatus;
 import javache.http.*;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 
 import static javache.constants.WebConstants.*;
@@ -15,7 +16,7 @@ public class RequestHandler {
     public RequestHandler() {
     }
 
-    public byte[] handleRequest(String requestContent) throws IOException {
+    public byte[] handleRequest(String requestContent) throws IOException, URISyntaxException {
 
         HttpRequest httpRequest = new HttpRequestImpl(requestContent);
 

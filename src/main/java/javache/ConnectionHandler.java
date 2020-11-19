@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.URISyntaxException;
 
 public class ConnectionHandler extends Thread {
 
@@ -33,7 +34,7 @@ public class ConnectionHandler extends Thread {
             this.clientSocketOutputStream.close();
             this.clientSocket.close();
 
-        } catch (IOException e) {
+        } catch (IOException | URISyntaxException e) {
             e.printStackTrace();
         }
     }

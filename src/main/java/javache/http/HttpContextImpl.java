@@ -4,13 +4,15 @@ import javache.enums.Folder;
 import javache.enums.HttpStatus;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
+import javax.activation.MimetypesFileTypeMap;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 
 import static javache.constants.WebConstants.*;
 
@@ -20,7 +22,7 @@ public class HttpContextImpl implements HttpContext {
     private HttpResponse httpResponse;
     private UriComponents uriBuilder;
 
-    public HttpContextImpl(HttpRequest httpRequest) throws IOException {
+    public HttpContextImpl(HttpRequest httpRequest) throws IOException, URISyntaxException {
         this.httpRequest = httpRequest;
         this.createHttpResponse();
     }
@@ -38,59 +40,40 @@ public class HttpContextImpl implements HttpContext {
     private void createHttpResponse() throws IOException {
         this.httpResponse = new HttpResponseImpl();
 
-        String url = this.httpRequest.getRequestUrl().endsWith("/")
+        String url = this.httpRequest.getRequestUrl().equals("/")
                 ? INDEX
                 : this.httpRequest.getRequestUrl();
 
-        Folder folder = this.httpRequest.isResource()
+        Folder folder = this.httpRequest.isResource() && !url.endsWith(".html")
                 ? Folder.ASSETS
                 : Folder.PAGES;
 
-        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        InputStream is = classloader.getResourceAsStream(folder + url);
+        String filePath = url.contains(folder.getFolder())
+                ? RESOURCES_PATH + url
+                : RESOURCES_PATH + folder.getFolder() + url;
 
-        if (is == null) {
-            url = NOT_FOUND;
+        File file = Paths.get(filePath).toFile();
 
+        if (!file.exists()) {
+            filePath = RESOURCES_PATH + Folder.PAGES.getFolder() + NOT_FOUND;
             this.httpResponse.setStatusCode(HttpStatus.NOT_FOUND);
-            this.httpResponse.addHeader("Content-type", "text/html");
-            String template = PATH_TEMPLATE + folder.getFolder() + url;
-            uriBuilder = UriComponentsBuilder.fromUriString(template).build();
-
-            byte[] htmlBytes = Files.readAllBytes(Path.of(uriBuilder.getPath()));
-
-            this.httpResponse.setContent(htmlBytes);
-
+            file = Paths.get(filePath).toFile();
         } else {
-            String resourcePath = Arrays.toString(is.readAllBytes());
+            this.httpResponse.setStatusCode(HttpStatus.OK);
 
-            if (resourcePath.contains(Folder.ASSETS.toString())) {
-                this.httpResponse.setStatusCode(HttpStatus.OK);
-                this.httpResponse.addHeader("Content-Type", "image/*");
-
-                String template = PATH_TEMPLATE + folder.getFolder() + url;
-                uriBuilder = UriComponentsBuilder.fromUriString(template).build();
-
-                byte[] imageBytes = Files.readAllBytes(Path.of(uriBuilder.getPath()));
-
-                this.httpResponse.setContent(imageBytes);
-
-            } else if (resourcePath.contains(Folder.PAGES.toString())) {
-                this.httpResponse.setStatusCode(HttpStatus.OK);
-
-                String template = PATH_TEMPLATE + folder.getFolder() + url;
-                uriBuilder = UriComponentsBuilder.fromUriString(template).build();
-
-                byte[] htmlBytes = Files.readAllBytes(Path.of(uriBuilder.getPath()));
-
-                this.httpResponse.setContent(htmlBytes);
-            }
         }
+
+        String mimetype = new MimetypesFileTypeMap().getContentType(file);
+        uriBuilder = UriComponentsBuilder.fromUriString(filePath).build();
+
+        byte[] contentBytes = Files.readAllBytes(Path.of(uriBuilder.getPath()));
 
         this.httpResponse.addHeader("Date", LocalDateTime.now().toString());
         this.httpResponse.addHeader("Server", SERVER_NAME + "/" + SERVER_VERSION);
-        this.httpResponse.addHeader("Content-Length", String.valueOf(this.httpResponse.getContent().length));
+        this.httpResponse.addHeader("Content-Length", String.valueOf(contentBytes.length));
+        this.httpResponse.addHeader("Content-Type", mimetype);
 
+        this.httpResponse.setContent(contentBytes);
     }
 
 }
